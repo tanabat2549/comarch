@@ -31,15 +31,16 @@ assert result[2] == "1" and result[3] == "2" and result[4] == "1", "comment"
 
 print("all parse_line tests passed")
 print("-------------------")
-'''
-#pass1
+#'''
+#pass1"lw 1 2 3\n", "beq 0 0 start\n",
+
 lines_countdown = [
-    "lw 0 1 five\n",
-    "lw 1 2 3\n",
+    "\tlw 0 1 five\n",
+    "\tlw 1 2 3\n",
     "start add 1 2 1\n",
-    "beq 0 1 2\n",
-    "beq 0 0 start\n",
-    "noop\n",
+    "\tbeq 0 1 2\n",
+    "\tbeq 0 0 start\n",
+    "\tnoop\n",
     "done halt\n",
     "five .fill 5\n",
     "neg1 .fill -1\n",
@@ -47,7 +48,8 @@ lines_countdown = [
 ]
 table, program = pass1(lines_countdown)
 result = table
+print(f"table = {table}")
+print(f"program = {program}")
 expected = {"start": 2, "done": 6, "five": 7, "neg1": 8, "stAddr": 9}
-print(result)
 assert result == expected, f"case 1 failed: result: {result} expected: {expected}"
-'''
+#'''
