@@ -138,7 +138,7 @@ def execute_instruction(state):
     # """
     check_address(state.pc)  # [เพิ่ม] กัน pc ติดลบ/เกิน (index ลบของ Python ไม่ error เอง)
     instr = state.mem[state.pc]
-    d = decode_instruction(instr)  #จำลองตัวแปลงโค้ดจากกาย
+    d = decode_instruction(instr)
 
     opcode  = d["opcode"]
     regA    = d["regA"]
