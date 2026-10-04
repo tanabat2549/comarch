@@ -1,6 +1,8 @@
 import sys
 
-NUMMEMORY = 65536
+NUMREGS = 8
+MAXMEM = 65536
+NUMMEMORY = MAXMEM   # ใช้ค่าเดียวกัน: ขนาด memory ของเครื่อง SMC
 
 # opcode ตามสเปก
 ADD  = 0
@@ -18,7 +20,74 @@ OPCODES = {
 }
 
 
-# ---- คนที่ 2: decoder ----
+# ================= คนที่ 1: load_machine_code() และ main() =================
+
+#ตั้ง state ของ pc, mem, reg, numMemory
+class State:
+    def __init__(self):
+        self.pc = 0
+        self.mem = []
+        self.reg = [0] * NUMREGS
+        self.num_memory = 0
+
+
+#อ่านไฟล์ machine code เก็บลง mem
+def load_machine_code(path):
+
+    #สร้าง state = State()
+    state = State()
+
+    #อ่านไฟล์แล้วแยกเป็นลิสต์
+    with open(path, "r") as f:
+        lines = f.read().splitlines()
+
+    #ตัดบรรทัดว่างท้ายไฟล์
+    while lines and lines[-1].strip() == "":
+        lines.pop()
+
+    #บรรทัดว่างกลางไฟล์ทำให้ address เลื่อนแสดง error
+    for line_no, line in enumerate(lines, start=1):
+        text = line.strip()
+        if text == "":
+            sys.stderr.write(f"error: blank line in the middle of file (line {line_no})\n")
+            sys.exit(1)
+        try:
+            state.mem.append(int(text))
+        except ValueError:
+            sys.stderr.write(f"error: line {line_no} is not an integer: {text!r}\n")
+            sys.exit(1)
+
+    #ตั้ง num_memory = len(state.mem) , ตรวจว่าไม่เกิน 65,536 คำถ้าเกินแสดง error
+    state.num_memory = len(state.mem)
+    if state.num_memory > MAXMEM:
+        sys.stderr.write(f"error: program too large ({state.num_memory} > {MAXMEM} words)\n")
+        sys.exit(1)
+
+    #[เพิ่ม] เติม mem ด้วย 0 จนครบ 65,536 คำ เพื่อให้ lw/sw ที่อ้าง address
+    # นอกช่วงโปรแกรม แต่ยังอยู่ใน 0..65535 ไม่เกิด IndexError (num_memory ยังเท่าเดิม)
+    state.mem.extend([0] * (MAXMEM - state.num_memory))
+
+    #ตั้ง reg เป็น 0 ทุกตัวและ pc = 0 แล้ว return state
+    state.reg = [0] * NUMREGS
+    state.pc = 0
+    return state
+
+
+#print state
+def print_state(state):
+    print("\n@@@\nstate:")
+    print("\tpc", state.pc)
+    print("\tmemory:")
+    for i in range(state.num_memory):
+        print("\t\tmem[", i, "]", state.mem[i])
+    print("\tregisters:")
+    for i in range(NUMREGS):
+        print("\t\treg[", i, "]", state.reg[i])
+    print("end state")
+
+
+# ================= คนที่ 2: decoder =================
+
 def convert_num(num):
     """แปลงเลข 16-bit (two's complement) เป็น signed int"""
     num &= 0xFFFF              # กันกรณีส่งค่ามากกว่า 16 bit เข้ามา
@@ -45,12 +114,19 @@ def decode_instruction(instr):
     }
 
 
-# ---- คนที่ 3: execute ----
+# ================= คนที่ 3: execute =================
+
 def to_int32(x):  # [เพิ่ม] บีบค่ากลับเป็น 32-bit signed เหมือน int ของ C
     x &= 0xFFFFFFFF
     if x & 0x80000000:
         x -= (1 << 32)
     return x
+
+
+def check_address(addr):  # [แก้: เทียบกับ NUMMEMORY (65536) ไม่ใช้ len(state.mem) และตัด param state ออก]
+    if addr < 0 or addr >= NUMMEMORY:
+        print(f"error: memory address {addr} out of range", file=sys.stderr)
+        sys.exit(1)
 
 
 def execute_instruction(state):
@@ -109,7 +185,7 @@ def execute_instruction(state):
     elif opcode == NOOP: #ไม่มี operation ข้ามการทำงานเลย
         state.pc += 1
 
-    else: 
+    else:
         print(f"error: unrecognized opcode {opcode}", file=sys.stderr)
         sys.exit(1)
 
@@ -117,7 +193,29 @@ def execute_instruction(state):
     return False
 
 
-def check_address(addr):  # [แก้: เทียบกับ NUMMEMORY (65536) ไม่ใช้ len(state.mem) และตัด param state ออก]
-    if addr < 0 or addr >= NUMMEMORY:
-        print(f"error: memory address {addr} out of range", file=sys.stderr)
+# ================= main =================
+
+def main():
+    if len(sys.argv) != 2:
+        sys.stderr.write("usage: python simulator_full.py <machine-code file>\n")
         sys.exit(1)
+    state = load_machine_code(sys.argv[1])
+
+    executed = 0
+    while True:
+        #ก่อน execute ทุก instruction
+        print_state(state)
+        halted = execute_instruction(state)   # [แก้] เปลี่ยนจาก step() เป็น execute_instruction()
+        executed += 1
+        if halted:
+            break
+
+    # ตอนจบ
+    print("machine halted")
+    print(f"total of {executed} instructions executed")
+    print("final state of machine:")
+    print_state(state)
+
+
+if __name__ == "__main__":
+    main()
