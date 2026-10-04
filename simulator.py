@@ -2,9 +2,9 @@ import sys
 
 NUMREGS = 8
 MAXMEM = 65536
-NUMMEMORY = MAXMEM   # ใช้ค่าเดียวกัน: ขนาด memory ของเครื่อง SMC
+NUMMEMORY = MAXMEM
 
-# opcode ตามสเปก
+# opcode
 ADD  = 0
 NAND = 1
 LW   = 2
@@ -20,9 +20,9 @@ OPCODES = {
 }
 
 
-# ================= คนที่ 1: load_machine_code() และ main() =================
+# load machine code และ main 
 
-#ตั้ง state ของ pc, mem, reg, numMemory
+#ตั้ง state เริ่มต้นของ pc, mem, reg, numMemory
 class State:
     def __init__(self):
         self.pc = 0
@@ -63,8 +63,8 @@ def load_machine_code(path):
         sys.stderr.write(f"error: program too large ({state.num_memory} > {MAXMEM} words)\n")
         sys.exit(1)
 
-    #[เพิ่ม] เติม mem ด้วย 0 จนครบ 65,536 คำ เพื่อให้ lw/sw ที่อ้าง address
-    # นอกช่วงโปรแกรม แต่ยังอยู่ใน 0..65535 ไม่เกิด IndexError (num_memory ยังเท่าเดิม)
+    # เติม mem ด้วย 0 จนครบ 65,536 คำ เพื่อให้ lw/sw ที่อ้าง address
+    # นอกช่วงโปรแกรม แต่ยังอยู่ใน 0..65535 ไม่เกิด IndexError
     state.mem.extend([0] * (MAXMEM - state.num_memory))
 
     #ตั้ง reg เป็น 0 ทุกตัวและ pc = 0 แล้ว return state
@@ -86,7 +86,7 @@ def print_state(state):
     print("end state")
 
 
-# ================= คนที่ 2: decoder =================
+# decoder 
 
 def convert_num(num):
     """แปลงเลข 16-bit (two's complement) เป็น signed int"""
@@ -114,29 +114,24 @@ def decode_instruction(instr):
     }
 
 
-# ================= คนที่ 3: execute =================
+# execute 
 
-def to_int32(x):  # [เพิ่ม] บีบค่ากลับเป็น 32-bit signed เหมือน int ของ C
+def to_int32(x):  #  บีบค่ากลับเป็น 32-bit signed
     x &= 0xFFFFFFFF
     if x & 0x80000000:
         x -= (1 << 32)
     return x
 
 
-def check_address(addr):  # [แก้: เทียบกับ NUMMEMORY (65536) ไม่ใช้ len(state.mem) และตัด param state ออก]
+def check_address(addr): #check condition boundary
     if addr < 0 or addr >= NUMMEMORY:
         print(f"error: memory address {addr} out of range", file=sys.stderr)
         sys.exit(1)
 
 
 def execute_instruction(state):
-    # """
-    # ทำ 1 คำสั่งจาก memory[pc]
-    # คืนค่า True ถ้าเป็น halt (ให้ main หยุดลูป)
-    # คืนค่า False ถ้ายังไม่ halt
-    # ห้ามเรียก printState ที่นี่เด็ดขาด
-    # """
-    check_address(state.pc)  # [เพิ่ม] กัน pc ติดลบ/เกิน (index ลบของ Python ไม่ error เอง)
+
+    check_address(state.pc)  # กัน pc ติดลบ/เกิน
     instr = state.mem[state.pc]
     d = decode_instruction(instr)
 
@@ -193,7 +188,7 @@ def execute_instruction(state):
     return False
 
 
-# ================= main =================
+# main 
 
 def main():
     if len(sys.argv) != 2:
@@ -205,7 +200,7 @@ def main():
     while True:
         #ก่อน execute ทุก instruction
         print_state(state)
-        halted = execute_instruction(state)   # [แก้] เปลี่ยนจาก step() เป็น execute_instruction()
+        halted = execute_instruction(state)
         executed += 1
         if halted:
             break
