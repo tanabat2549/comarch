@@ -1,5 +1,7 @@
 import sys
 
+NUMMEMORY = 65536
+
 # opcode ตามสเปก
 ADD  = 0
 NAND = 1
@@ -10,6 +12,46 @@ JALR = 5
 HALT = 6
 NOOP = 7
 
+OPCODES = {
+    ADD: "add", NAND: "nand", LW: "lw", SW: "sw",
+    BEQ: "beq", JALR: "jalr", HALT: "halt", NOOP: "noop",
+}
+
+
+# ---- คนที่ 2: decoder ----
+def convert_num(num):
+    """แปลงเลข 16-bit (two's complement) เป็น signed int"""
+    num &= 0xFFFF              # กันกรณีส่งค่ามากกว่า 16 bit เข้ามา
+    if num & (1 << 15):        # bit 15 = 1 แปลว่าติดลบ
+        num -= (1 << 16)
+    return num
+
+
+def decode_instruction(instr):
+    """แยก field ของ instruction 32-bit แล้วคืนเป็น dict"""
+    opcode   = (instr >> 22) & 0b111      # bits 24-22
+    reg_a    = (instr >> 19) & 0b111      # bits 21-19
+    reg_b    = (instr >> 16) & 0b111      # bits 18-16
+    dest_reg = instr & 0b111              # bits 2-0  (add, nand)
+    offset   = convert_num(instr & 0xFFFF)  # bits 15-0 (lw, sw, beq)
+
+    return {
+        "opcode": opcode,
+        "name": OPCODES[opcode],
+        "regA": reg_a,
+        "regB": reg_b,
+        "destReg": dest_reg,
+        "offset": offset,
+    }
+
+
+# ---- คนที่ 3: execute ----
+def to_int32(x):  # [เพิ่ม] บีบค่ากลับเป็น 32-bit signed เหมือน int ของ C
+    x &= 0xFFFFFFFF
+    if x & 0x80000000:
+        x -= (1 << 32)
+    return x
+
 
 def execute_instruction(state):
     # """
@@ -18,6 +60,7 @@ def execute_instruction(state):
     # คืนค่า False ถ้ายังไม่ halt
     # ห้ามเรียก printState ที่นี่เด็ดขาด
     # """
+    check_address(state.pc)  # [เพิ่ม] กัน pc ติดลบ/เกิน (index ลบของ Python ไม่ error เอง)
     instr = state.mem[state.pc]
     d = decode_instruction(instr)  #จำลองตัวแปลงโค้ดจากกาย
 
@@ -28,22 +71,22 @@ def execute_instruction(state):
     offset  = d["offset"]
 
     if opcode == ADD:
-        state.reg[destReg] = state.reg[regA] + state.reg[regB] #result มีค่าเป็น register 1 + register 2
+        state.reg[destReg] = to_int32(state.reg[regA] + state.reg[regB]) #result มีค่าเป็น register 1 + register 2 [แก้: บีบเป็น 32-bit]
         state.pc += 1 #ไปบรรทัดถัดไป
 
     elif opcode == NAND:
-        state.reg[destReg] = ~(state.reg[regA] & state.reg[regB]) #result มีค่าเป็น ค่าตรงข้ามของ register ตัวที่ 1 และ 2 ที่นำมา and กัน
+        state.reg[destReg] = to_int32(~(state.reg[regA] & state.reg[regB])) #result มีค่าเป็น ค่าตรงข้ามของ register ตัวที่ 1 และ 2 ที่นำมา and กัน [แก้: บีบเป็น 32-bit]
         state.pc += 1
 
     elif opcode == LW:
         addr = state.reg[regA] + offset  #addr จะทำหน้าที่ในการเก็บตำแหน่งใน memory ที่คำนวณจากค่า base address ที่บวกกับค่า offset
-        check_address(state, addr) #นำค่าที่ได้ไปเทียบกับใน memory ว่ามีจริงหรือไม่ หรือ ว่าเกินขอบเขตที่ควรจะมีหรือไม่
+        check_address(addr) #นำค่าที่ได้ไปเทียบกับใน memory ว่ามีจริงหรือไม่ หรือ ว่าเกินขอบเขตที่ควรจะมีหรือไม่
         state.reg[regB] = state.mem[addr] #ถ้ามีนำค่าที่ได้จาก memory[addr] ไปเก็บใน register B
         state.pc += 1
 
     elif opcode == SW:
         addr = state.reg[regA] + offset  #addr จะทำหน้าที่ในการเก็บตำแหน่งใน memory ที่คำนวณจากค่า base address ที่บวกกับค่า offset
-        check_address(state, addr) #นำค่าที่ได้ไปเทียบกับใน memory ว่ามีจริงหรือไม่ หรือ ว่าเกินขอบเขตที่ควรจะมีหรือไม่
+        check_address(addr) #นำค่าที่ได้ไปเทียบกับใน memory ว่ามีจริงหรือไม่ หรือ ว่าเกินขอบเขตที่ควรจะมีหรือไม่
         state.mem[addr] = state.reg[regB] #นำค่าจาก register B ไปเก็บที่ตำแหน่ง addr ของ memory
         state.pc += 1
 
@@ -74,7 +117,7 @@ def execute_instruction(state):
     return False
 
 
-def check_address(state, addr):
-    if addr < 0 or addr >= len(state.mem):
+def check_address(addr):  # [แก้: เทียบกับ NUMMEMORY (65536) ไม่ใช้ len(state.mem) และตัด param state ออก]
+    if addr < 0 or addr >= NUMMEMORY:
         print(f"error: memory address {addr} out of range", file=sys.stderr)
         sys.exit(1)
