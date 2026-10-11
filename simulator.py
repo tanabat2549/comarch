@@ -20,7 +20,7 @@ OPCODES = {
 }
 
 
-# load machine code และ main 
+# load machine code
 
 #ตั้ง state เริ่มต้นของ pc, mem, reg, numMemory
 class State:
@@ -54,10 +54,10 @@ def load_machine_code(path):
         try:
             state.mem.append(int(text))
         except ValueError:
-            sys.stderr.write(f"error: line {line_no} is not an integer: {text!r}\n")
+            sys.stderr.write(f"error: line {line_no} is not an integer: {text!r}\n")  #ส่วนที่ตรวจสอบว่า input = integer มั้ย
             sys.exit(1)
 
-    #ตั้ง num_memory = len(state.mem) , ตรวจว่าไม่เกิน 65,536 คำถ้าเกินแสดง error
+    #ตั้งค่าจำนวน memory ให้เท่ากับจำนวน list ของ state.mem , ตรวจว่าไม่เกิน 65,536 คำถ้าเกินแสดง error
     state.num_memory = len(state.mem)
     if state.num_memory > MAXMEM:
         sys.stderr.write(f"error: program too large ({state.num_memory} > {MAXMEM} words)\n")
@@ -101,10 +101,10 @@ def decode_instruction(instr):
     opcode   = (instr >> 22) & 0b111      # bits 24-22
     reg_a    = (instr >> 19) & 0b111      # bits 21-19
     reg_b    = (instr >> 16) & 0b111      # bits 18-16
-    dest_reg = instr & 0b111              # bits 2-0  (add, nand)
-    offset   = convert_num(instr & 0xFFFF)  # bits 15-0 (lw, sw, beq)
+    dest_reg = instr & 0b111              # bits 2-0 
+    offset   = convert_num(instr & 0xFFFF)  # bits 15-0 -> 16บิตส่งไปคำนวณค่าใน convert_num
 
-    return {
+    return { #return ค่าดังกล่าวไปใช้ต่อใน execute_instruction
         "opcode": opcode,
         "name": OPCODES[opcode],
         "regA": reg_a,
@@ -116,7 +116,7 @@ def decode_instruction(instr):
 
 # execute 
 
-def to_int32(x):  #  บีบค่ากลับเป็น 32-bit signed
+def to_int32(x):  #  บีบค่ากลับเป็น 32-bit signed จำลองการทำงานของเครื่อง SMC
     x &= 0xFFFFFFFF
     if x & 0x80000000:
         x -= (1 << 32)
@@ -184,25 +184,25 @@ def execute_instruction(state):
         print(f"error: unrecognized opcode {opcode}", file=sys.stderr)
         sys.exit(1)
 
-    state.reg[0] = 0   # reg0 ต้องเป็น 0 เสมอ ไม่ว่าคำสั่งไหนจะพยายามเขียนทับ
+    state.reg[0] = 0   # register0 ต้องเป็น 0 เสมอ ไม่ว่าคำสั่งไหนจะพยายามเขียนทับ
     return False
 
 
 # main 
 
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 2: #ตรวจสอบ argument ในการรันคำสั่ง
         sys.stderr.write("usage: python simulator_full.py <machine-code file>\n")
         sys.exit(1)
-    state = load_machine_code(sys.argv[1])
+    state = load_machine_code(sys.argv[1]) #loadmachine code file ที่ 2 
 
     executed = 0
     while True:
-        #ก่อน execute ทุก instruction
+        #พิมพ์ state ก่อน execute ทุก instruction
         print_state(state)
         halted = execute_instruction(state)
         executed += 1
-        if halted:
+        if halted: #ถ้า state ที่ได้เป็น halt
             break
 
     # ตอนจบ
@@ -213,4 +213,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main() 
