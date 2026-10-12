@@ -17,9 +17,6 @@ def convert_num(num):
         num -= (1 << 16)
     return num
 
-#MAX_MEM  = 65536
-#NUM_REGS = 8
-
 def error(msg):
     print(f"error: {msg}", file=sys.stderr)
     sys.exit(1)

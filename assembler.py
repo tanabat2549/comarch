@@ -2,60 +2,60 @@ import sys
 #import spec 
 from spec import error, OPCODES, R_TYPE, I_TYPE, J_TYPE, O_TYPE
 
-def is_number(text):
-    try:
+def is_number(text): # method ตรวจสอบว่า text สามารถแปลงเป็นจำนวนเต็มได้ไหม 
+    try:  
         int(text)
         return True
     except ValueError:
         return False
-
+    
+# method แยก line ของ code assembly ออกเป็น label, opcode, field0, field1, field2
 def parse_line(raw_line):
-    line = raw_line.rstrip('\r\n')
-    if not line.strip():  #whitespace
+    line = raw_line.rstrip('\r\n') #ตัด \r\n ออกจากท้าย line
+    if not line.strip():  #whitespace case
         return None
 
-    label = None
-    first_char = line[0]
+    label = None 
+    first_char = line[0]  
     
-    if first_char not in (' ', '\t'):
-        parts = line.split(None, 1)
-        label = parts[0]
-        rest_line = parts[1] if len(parts) > 1 else ""
+    if first_char not in (' ', '\t'): # ถ้า first_char ไม่ใช่ whitespace แสดงว่า line นี้มี label
+        parts = line.split(None, 1) # split line ออกเป็น 2 ส่วน โดยใช้ whitespace เป็นตัวแบ่งทั้งสองส่วนออกจากกัน
+        label = parts[0] #โดย label จะเป็นส่วนแรกของ line และที่เหลือของ line จะเป็น rest_line
+        rest_line = parts[1] if len(parts) > 1 else "" #เงื่อนไขนี้ตรวจสอบว่า หลังแยก label ออก ยังมีส่วนที่เหลือมั้ย ถ้ามีให้ rest_line เป็นส่วนเหลือ ถ้าไม่มีให้ rest_line เป็น string ว่าง กัน index error
     else:
-        rest_line = line.strip()
+        rest_line = line.strip() #ตัด whitespace ออกจากทั้งสองด้านของ line
 
-    if not rest_line:
-        return label, None, None, None, None
+    if not rest_line: #เงื่อนไขนี้ตรวจสอบว่า rest_line เป็นstrว่าง? ถ้าว่าง แสดงว่า line นี้มี label แต่ไม่มี instruction ให้ return label และ None
+        return label, None, None, None, None # none 4 ตัวนี้แทนค่า opcode, field0, field1, field2 เพื่อให้ pass1() สามารถตรวจสอบได้ว่ามี label แต่ไม่มี instruction
 
     tokens = rest_line.split()
-    opcode = tokens[0] if len(tokens) > 0 else None
-    field0 = tokens[1] if len(tokens) > 1 else None
-    field1 = tokens[2] if len(tokens) > 2 else None
-    field2 = tokens[3] if len(tokens) > 3 else None
-    return label, opcode, field0, field1, field2
-
+    opcode = tokens[0] if len(tokens) > 0 else None #หา opcode จาก tokens ถ้า tokens มีความยาวมากกว่า 0 ให้ opcode เป็น token แรก ถ้าไม่ เป็น None
+    field0 = tokens[1] if len(tokens) > 1 else None #ถ้า tokens มีความยาวมากกว่า 1 ให้ field0 เป็น token ที่สอง ถ้าไม่ เป็น None
+    field1 = tokens[2] if len(tokens) > 2 else None 
+    field2 = tokens[3] if len(tokens) > 3 else None 
+    return label, opcode, field0, field1, field2 
 
 #label<white>instruction<white>field0<white>field1<white>field2<white>comments
-def pass1(lines):
+def pass1(lines): #สร้าง symbol table และแยก instruction ออกเป็น opcode และ fields
     table = {}
     program = []
     address = 0 
-    
+    # loop ทุกบรรทัดในไฟล์
     for i in lines:          
         parsed = parse_line(i)  
-        if parsed is None:
+        if parsed is None: #ถ้า parsed เป็น None หมายความว่า line เป็น whitespace ให้ข้ามไปบรรทัดถัดไปโดยไม่เพิ่ม address
             continue  
         label, opcode, field0, field1, field2 = parsed
 
-        if label is not None:
-            if not label[0].isalpha() or len(label) > 6:
+        if label is not None: #ตรวจสอบ label ว่าถูกต้องตาม format ไหม
+            if not label[0].isalpha() or not label.isalnum() or len(label) > 6: #เช็คว่า label เริ่มต้นด้วยตัวอักษร ใน labelต้องเป็นแค่ตัวอักษรและตัวเลข และยาวไม่เกิน 6 ตัว ถ้าไม่ ถือว่า error
                 error(f"invalid label format: {label}")          
-            if label in table:
+            if label in table: #if duplicate
                 error(f"duplicate label in table: {label}")
-            table[label] = address
+            table[label] = address #เพิ่ม label และ address ลงใน symbol table
 
-        program.append((address, opcode, field0, field1, field2))  
-        address = address+1
+        program.append((address, opcode, field0, field1, field2))  #เพิ่ม instruction ลงใน program list
+        address = address+1 #เพิ่ม address สำหรับ instruction ถัดไป
 
     return table, program
 
