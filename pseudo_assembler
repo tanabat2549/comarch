@@ -1,0 +1,133 @@
+FUNCTION Main(assembly, machineCode)
+    IF number of arguments != 3 THEN
+        ERROR("usage: assembler <assembly-code file> <machine-code file>")
+        
+    lines <- read all lines of assembly
+    IF assembly cannot be opened THEN
+        ERROR("can't not open file")
+    
+    (table, program) <- Pass1(lines)
+    machineCode <- Pass2(table, program)
+    
+    FOR EACH word IN machineCode DO
+        write word to machineCode followed by newline
+    EXIT(0)
+
+FUNCTION ParseLine(rawLine)
+    line <- rawLine without trailing newline characters
+    IF line contain only whitespace THEN
+        RETURN NONE
+    
+    label <- NONE
+    IF first character of line is NOT space or tab THEN
+        label <- first word of line
+        restLine <- remainder of the first word
+    ELSE
+        restLine <- line without whitespace surrounding
+
+    IF restLine is empty THEN
+        RETURN (label, NONE, NONE, NONE, NONE)
+
+    tokens <- split restLine by whitespace
+    opcode <- first token if it exists, otherwise NONE
+    field0 <- second token if it exists, otherwise NONE
+    field1 <- third token if it exists, otherwise NONE
+    field2 <- fourth token if it exists, otherwise NONE
+    RETURN (label, opcode, field0, field1, field2)
+
+FUNCTION Pass1(lines)
+    table <- empty dictionary
+    program <- empty list
+    address <- 0
+    FOR EACH rawline IN lines DO
+
+        parsed <- ParseLine(rawline)
+        IF parsed is NONE THEN
+            CONTINUE
+        
+        (label, opcode, field0, field1, field2) <- parsed
+        IF label is NOT NONE THEN
+
+            IF label is NOT start with a letter 
+                OR label is contain non-alphanumeric characters 
+                OR label is longer than 6 characters
+                    ERROR("invalid label format")
+
+            IF label is already in table THEN
+                ERROR("duplicate label")
+
+            table[label] <- address
+
+        append (address, opcode, field0, field1, field2) to program
+        address <- address + 1
+    RETURN (table, program)
+
+FUNCTION ParseReg(text)
+    IF text is NONE THEN
+        ERROR("missing register")
+
+    IF text is NOT a number 
+         ERROR("register must be a number")
+
+    reg <- convert text to integer
+    IF reg is NOT in range 0 to 7 THEN
+        ERROR("register out of range")
+
+    RETURN reg
+
+FUNCTION Resolve(text, table)
+    IF text is a number THEN
+        RETURN convert text to integer
+
+    IF text is NOT IN table THEN
+        ERROR("undefined label")
+
+    RETURN table[text]
+
+FUNCTION Pass2(table, program)
+    machineCode <- empty list
+    FOR EACH (address, opcode, field0, field1, field2) IN program DO
+
+        IF opcode is None THEN
+            ERROR("label without instruction")
+
+        IF opcode is .fill THEN
+            IF field0 is None THEN
+                ERROR(".fill missing value")
+            value <- Resolve(field0, table)
+            IF value is NOT IN range -2^31 to 2^31-1 THEN
+                ERROR(".fill value out of range")
+            append value to machineCode
+            CONTINUE
+        
+        IF opcode is NOT IN OPCODES THEN
+            ERROR("invalid opcode")
+
+        IF opcode is IN R-type THEN
+            regA <- ParseReg(field0)
+            regB <- ParseReg(field1)
+            destReg <- ParseReg(field2)
+            append (opcode << 22) OR (regA << 19) OR (regB << 16) OR destReg to machineCode
+
+        ELSE IF opcode is IN I-type THEN
+            regA <- ParseReg(field0)
+            regB <- ParseReg(field1)
+            IF field2 is None THEN
+                ERROR("missing offsetField")
+            offset <- Resolve(field2, table)
+            IF opcode is beq AND offset is a symbolic address THEN
+                offset <- offset - (address + 1)
+            IF offset is NOT IN range -32768 to 32,767 THEN
+                ERROR("offsetField out of range")
+            append (opcode << 22) OR (regA << 19) OR (regB << 16) OR (offset AND 0xFFFF) to machineCode
+
+            ELSE IF opcode is IN J-type THEN
+                regA <- ParseReg(field0)
+                regB <- ParseReg(field1)
+                append (opcode << 22) OR (regA << 19) OR (regB << 16) to machineCode
+
+            ELSE IF opcode is IN O-type THEN
+                append (opcode << 22) to machineCode
+        
+    RETURN machineCode
+
